@@ -17,6 +17,10 @@
 #define APRS_TX_offset_utc_sec 19 // this selects what UTC second the packet will be sent out
 #define APRS_interval_count 300  // 100 is 1 min
 
+unsigned long lastUpdate = 0;
+const unsigned long gpsTimeout = 10000;  // Timeout in ms (10 sec)
+
+
 //APRS symbol
 // S - shuttle
 // < - Bike
@@ -73,12 +77,11 @@ void setup() {
 void loop() {
 
   gps.listen();
+  bool gpsReceived = false;
   while (gps.available() > 0) {
     String gps_raw = gps.readStringUntil('\n');
-    //Serial.println(gps_raw);
-    // Valid data: $GPGLL,3938.28486,N,07957.13511,W,191757.00,A,A*7D
+    
     if (gps_raw.substring(0, 6) == "$GPGLL") {
-      
       #ifdef sim
         gps_raw = "$GPGLL,3938.28486,N,07957.13511,W,191757.00,A,A*7D";
       #endif
@@ -86,8 +89,17 @@ void loop() {
       gps_raw.toCharArray(test_data, 100);
       char *p = strtok(test_data, ",");
       update_GPS(p);
+      gpsReceived = true;
+      lastUpdate = millis();
     }
-
+    if (!gpsReceived && millis() - lastUpdate > gpsTimeout) {
+    Serial.println("[warn] No GPS detected. Using default location.");
+    strcpy(Lat, "38.0000N"); // North Korea approx.
+    strcpy(Lon, "126.0000E");
+    msg_valid = 1; // force it valid to send
+    location_update();
+    lastUpdate = millis();
+  }
 
   }
 }
